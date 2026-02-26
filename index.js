@@ -1,84 +1,55 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
-const compression = require('compression');
-const helmet = require('helmet');
-
 const app = express();
-
-// Professional Logic: Speed & Security Middlewares
-app.use(helmet()); // DDoS aur attacks se bachane ke liye
-app.use(compression()); // 4000+ users ke bandwidth load ko kam karne ke liye
-app.use(cors({ origin: "*" }));
-
 const server = http.createServer(app);
-
-// ENTERPRISE GRADE CONFIGURATION (Logic for 4000+ Concurrent Users)
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
-    pingTimeout: 60000, // Connection stability logic
-    pingInterval: 25000,
-    connectTimeout: 60000,
-    transports: ['websocket'], // Sirf fast websocket use hoga
-    maxHttpBufferSize: 1e8 // 100MB buffer for heavy traffic/gifts
+const io = new Server(server, { 
+    cors: { origin: "*" },
+    transports: ['websocket'], // Fast speed ke liye only websocket
+    maxHttpBufferSize: 1e8 // Large data/gift handle karne ke liye
 });
 
-// High-Speed Matching Queue using 'Set' for O(1) performance
-let waitingQueue = new Set(); 
+// Database on Server (Memory-efficient for 4000 users)
+let activeUsers = new Map();
+let waitingQueue = [];
+let serverLogs = []; // Call & Chat History
 
 io.on('connection', (socket) => {
-    console.log('User Active:', socket.id);
-
-    // 1. TURBO MATCHING LOGIC (HD Video Ready)
-    socket.on('join-room', () => {
-        if (waitingQueue.size > 0) {
-            const partnerSocketId = waitingQueue.values().next().value;
-            waitingQueue.delete(partnerSocketId);
+    socket.on('join-shiv-network', (user) => {
+        activeUsers.set(socket.id, { ...user, status: 'idle' });
+        
+        // Matchmaking Logic (Ultra Fast)
+        if (waitingQueue.length > 0) {
+            let partner = waitingQueue.shift();
+            const room = `HD_ROOM_${socket.id}_${partner.id}`;
             
-            const roomId = `HD_PRO_${socket.id}_${partnerSocketId}`;
+            // Call History Record
+            serverLogs.push({ type: 'CALL', users: [user.name, partner.name], time: new Date() });
             
-            socket.join(roomId);
-            const partnerSocket = io.sockets.sockets.get(partnerSocketId);
-            if(partnerSocket) partnerSocket.join(roomId);
-
-            // Signal for 50-50 Video Split
-            io.to(socket.id).emit('start-call', { roomId, partnerId: partnerSocketId, role: 'caller' });
-            io.to(partnerSocketId).emit('start-call', { roomId, partnerId: socket.id, role: 'receiver' });
+            io.to(socket.id).emit('match-ready', { partnerId: partner.id, room, role: 'caller' });
+            io.to(partner.id).emit('match-ready', { partnerId: socket.id, room, role: 'receiver' });
         } else {
-            waitingQueue.add(socket.id);
+            waitingQueue.push({ id: socket.id, name: user.name });
         }
     });
 
-    // 2. PROFESSIONAL GIFTING SYSTEM (Instant Trigger)
-    socket.on('send-gift', (gift) => {
-        if (gift.roomId) {
-            // Logic to broadcast gift to both users instantly
-            io.to(gift.roomId).emit('gift-received', {
-                sender: gift.senderId,
-                type: gift.type,
-                value: gift.value,
-                timestamp: Date.now()
-            });
-        }
+    // Chat & History Logic (Server-side)
+    socket.on('message', (data) => {
+        const msgLog = { from: data.from, msg: data.msg, time: new Date() };
+        serverLogs.push({ type: 'CHAT', ...msgLog });
+        io.to(data.to).emit('message-receive', msgLog);
     });
 
-    // 3. HD WEBRTC SIGNALING LOGIC (Zero Compression Pipeline)
-    socket.on('signal', (data) => {
-        if (data.to) {
-            io.to(data.to).emit('signal', { 
-                from: socket.id, 
-                signal: data.signal 
-            });
-        }
+    // Gift Logic with Animation Trigger
+    socket.on('send-gift', (data) => {
+        io.to(data.to).emit('animate-gift', { type: data.giftType });
     });
 
     socket.on('disconnect', () => {
-        waitingQueue.delete(socket.id);
-        console.log('User Offline');
+        activeUsers.delete(socket.id);
+        waitingQueue = waitingQueue.filter(u => u.id !== socket.id);
     });
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`✅ Enterprise Server Live on Port ${PORT}`));
+server.listen(process.env.PORT || 10000, () => console.log('🚀 Shiv HD Enterprise Server Live'));
 
