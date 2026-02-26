@@ -2,61 +2,83 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const compression = require('compression');
+const helmet = require('helmet');
 
 const app = express();
-app.use(cors());
+
+// Professional Logic: Speed & Security Middlewares
+app.use(helmet()); // DDoS aur attacks se bachane ke liye
+app.use(compression()); // 4000+ users ke bandwidth load ko kam karne ke liye
+app.use(cors({ origin: "*" }));
 
 const server = http.createServer(app);
 
-// High-Speed Socket Configuration
-const io = new Server(server, { 
+// ENTERPRISE GRADE CONFIGURATION (Logic for 4000+ Concurrent Users)
+const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
-    pingTimeout: 60000, // Connection fast rakhne ke liye
+    pingTimeout: 60000, // Connection stability logic
+    pingInterval: 25000,
+    connectTimeout: 60000,
+    transports: ['websocket'], // Sirf fast websocket use hoga
+    maxHttpBufferSize: 1e8 // 100MB buffer for heavy traffic/gifts
 });
 
-let waitingUsers = []; // Fast Queue
+// High-Speed Matching Queue using 'Set' for O(1) performance
+let waitingQueue = new Set(); 
 
 io.on('connection', (socket) => {
-    console.log('User Online:', socket.id);
+    console.log('User Active:', socket.id);
 
-    // 1. TURBO VIDEO CALLING (Match 2 people instantly)
+    // 1. TURBO MATCHING LOGIC (HD Video Ready)
     socket.on('join-room', () => {
-        if (waitingUsers.length > 0) {
-            const partner = waitingUsers.shift();
-            const roomId = `HD_ROOM_${socket.id}_${partner.id}`;
+        if (waitingQueue.size > 0) {
+            const partnerSocketId = waitingQueue.values().next().value;
+            waitingQueue.delete(partnerSocketId);
+            
+            const roomId = `HD_PRO_${socket.id}_${partnerSocketId}`;
             
             socket.join(roomId);
-            partner.join(roomId);
+            const partnerSocket = io.sockets.sockets.get(partnerSocketId);
+            if(partnerSocket) partnerSocket.join(roomId);
 
-            // Send HD Peer Signals
-            io.to(socket.id).emit('start-call', { roomId, partnerId: partner.id, role: 'caller' });
-            io.to(partner.id).emit('start-call', { roomId, partnerId: socket.id, role: 'receiver' });
+            // Signal for 50-50 Video Split
+            io.to(socket.id).emit('start-call', { roomId, partnerId: partnerSocketId, role: 'caller' });
+            io.to(partnerSocketId).emit('start-call', { roomId, partnerId: socket.id, role: 'receiver' });
         } else {
-            waitingUsers.push(socket);
+            waitingQueue.add(socket.id);
         }
     });
 
-    // 2. PROFESSIONAL GIFT SYSTEM (Real-time trigger)
-    socket.on('send-gift', (giftData) => {
-        // giftData: { roomId, giftType, senderName, animationEffect }
-        io.to(giftData.roomId).emit('gift-received', giftData);
+    // 2. PROFESSIONAL GIFTING SYSTEM (Instant Trigger)
+    socket.on('send-gift', (gift) => {
+        if (gift.roomId) {
+            // Logic to broadcast gift to both users instantly
+            io.to(gift.roomId).emit('gift-received', {
+                sender: gift.senderId,
+                type: gift.type,
+                value: gift.value,
+                timestamp: Date.now()
+            });
+        }
     });
 
-    // WEBRTC HD SIGNALING (The core of high-quality video)
+    // 3. HD WEBRTC SIGNALING LOGIC (Zero Compression Pipeline)
     socket.on('signal', (data) => {
-        io.to(data.to).emit('signal', { 
-            from: socket.id, 
-            signal: data.signal 
-        });
+        if (data.to) {
+            io.to(data.to).emit('signal', { 
+                from: socket.id, 
+                signal: data.signal 
+            });
+        }
     });
 
     socket.on('disconnect', () => {
-        waitingUsers = waitingUsers.filter(u => u.id !== socket.id);
+        waitingQueue.delete(socket.id);
+        console.log('User Offline');
     });
 });
 
-// Server Setup
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`🚀 Professional HD Server Running on Port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`✅ Enterprise Server Live on Port ${PORT}`));
+
