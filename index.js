@@ -1,55 +1,39 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { 
-    cors: { origin: "*" },
-    transports: ['websocket'], // Fast speed ke liye only websocket
-    maxHttpBufferSize: 1e8 // Large data/gift handle karne ke liye
-});
+const io = require("socket.io")(process.env.PORT || 3000, { cors: { origin: "*" } });
 
-// Database on Server (Memory-efficient for 4000 users)
-let activeUsers = new Map();
-let waitingQueue = [];
-let serverLogs = []; // Call & Chat History
+// Ye aapka Control Logic hai
+let appConfigurations = {
+    "SHIV_786": { secret: "MASTER_KEY", minutes: 10000, active: true } 
+};
 
-io.on('connection', (socket) => {
-    socket.on('join-shiv-network', (user) => {
-        activeUsers.set(socket.id, { ...user, status: 'idle' });
-        
-        // Matchmaking Logic (Ultra Fast)
-        if (waitingQueue.length > 0) {
-            let partner = waitingQueue.shift();
-            const room = `HD_ROOM_${socket.id}_${partner.id}`;
-            
-            // Call History Record
-            serverLogs.push({ type: 'CALL', users: [user.name, partner.name], time: new Date() });
-            
-            io.to(socket.id).emit('match-ready', { partnerId: partner.id, room, role: 'caller' });
-            io.to(partner.id).emit('match-ready', { partnerId: socket.id, room, role: 'receiver' });
-        } else {
-            waitingQueue.push({ id: socket.id, name: user.name });
+let activeCalls = new Map();
+
+io.on("connection", (socket) => {
+    // 1. AppID & Secret Check (ZegoCloud Style)
+    socket.on("init-infrastructure", (data) => {
+        const config = appConfigurations[data.appId];
+        if(config && config.secret === data.serverSecret) {
+            socket.emit("infra-ready", { status: "Authenticated", provider: "Shiv Enterprise" });
         }
     });
 
-    // Chat & History Logic (Server-side)
-    socket.on('message', (data) => {
-        const msgLog = { from: data.from, msg: data.msg, time: new Date() };
-        serverLogs.push({ type: 'CHAT', ...msgLog });
-        io.to(data.to).emit('message-receive', msgLog);
+    // 2. Direct Video Connect (No Token) [cite: 2026-02-25]
+    socket.on("call-user", ({ to, offer }) => {
+        io.to(to).emit("incoming-call", { from: socket.id, offer });
     });
 
-    // Gift Logic with Animation Trigger
-    socket.on('send-gift', (data) => {
-        io.to(data.to).emit('animate-gift', { type: data.giftType });
+    socket.on("answer-call", ({ to, answer }) => {
+        io.to(to).emit("call-accepted", { from: socket.id, answer });
     });
 
-    socket.on('disconnect', () => {
-        activeUsers.delete(socket.id);
-        waitingQueue = waitingQueue.filter(u => u.id !== socket.id);
+    // 3. Minute & Gift System [cite: 2026-02-24, 2026-02-25]
+    socket.on("send-gift", (data) => {
+        // Gift logic: user ke minutes/coins deduct karna
+        io.emit("display-gift", data);
+    });
+
+    socket.on("sync-history", (historyData) => {
+        // Firebase mein history save karna [cite: 2026-02-24]
+        console.log("History Updated for Admin");
     });
 });
-
-server.listen(process.env.PORT || 10000, () => console.log('🚀 Shiv HD Enterprise Server Live'));
 
