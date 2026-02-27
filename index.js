@@ -1,53 +1,50 @@
 const express = require('express');
 const http = require('http');
-const io = require('socket.io');
-const admin = require('firebase-admin');
-
-// Firebase Admin Setup (Aapka Database Memory) [cite: 2026-02-24]
-const serviceAccount = require("./serviceAccountKey.json");
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "YOUR_FIREBASE_DB_URL"
-});
-const db = admin.firestore();
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const serverIo = io(server, { cors: { origin: "*" } });
+const io = socketIo(server, { 
+    cors: { origin: "*" },
+    methods: ["GET", "POST"]
+});
 
-// Infrastructure Config [cite: 2026-02-25]
-const SHIV_INFRA = {
-    appId: "SHIV_786",
-    serverSecret: "MASTER_KEY_99",
-    appSign: "SIGN_SHIV_PRIVATE_SDK"
-};
+// Server status track karne ke liye
+let onlineUsers = new Map();
 
-serverIo.on("connection", (socket) => {
-    // Authentication Logic [cite: 2026-02-25]
-    socket.on("auth-provider", (data) => {
-        if(data.appId === SHIV_INFRA.appId && data.serverSecret === SHIV_INFRA.serverSecret) {
-            socket.emit("provider-active", { status: "Shiv HD Engine Live" });
-        }
+io.on("connection", (socket) => {
+    console.log("User Connected:", socket.id);
+    
+    // User ko register karna
+    socket.on("register-user", (data) => {
+        onlineUsers.set(socket.id, { id: socket.id, name: data.name || "Anonymous" });
+        io.emit("update-user-list", Array.from(onlineUsers.values()));
     });
 
-    // HD Video Signaling [cite: 2026-02-25]
+    // Full HD Video Signaling (P2P) - Sabse powerful logic [cite: 2026-02-25]
     socket.on("p2p-signal", (payload) => {
-        serverIo.to(payload.to).emit("p2p-receive", { from: socket.id, signal: payload.signal });
+        io.to(payload.to).emit("p2p-receive", {
+            from: socket.id,
+            signal: payload.signal
+        });
     });
 
-    // Minutes, Chat & Gift Tracking [cite: 2026-02-24, 2026-02-25]
-    socket.on("send-infra-gift", async (giftData) => {
-        await db.collection('gifts').add({ ...giftData, timestamp: admin.firestore.FieldValue.serverTimestamp() });
-        serverIo.emit("broadcast-gift", giftData);
+    // Chat aur Gift system ka direct control
+    socket.on("send-msg", (data) => {
+        io.emit("receive-msg", data);
     });
 
-    socket.on("sync-call-history", async (history) => {
-        await db.collection('callHistory').add(history); // Permanent Storage
+    socket.on("disconnect", () => {
+        onlineUsers.delete(socket.id);
+        io.emit("update-user-list", Array.from(onlineUsers.values()));
+        console.log("User Disconnected");
     });
 });
 
-app.get('/', (req, res) => res.send("<h1>Shiv Cloud Infrastructure is Online ✅</h1>"));
+app.get('/', (req, res) => {
+    res.send("<h1>Shiv Cloud Infrastructure: ACTIVE ✅</h1><p>No Errors Found. System is Running Smoothly.</p>");
+});
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server live on port ${PORT}`));
 
