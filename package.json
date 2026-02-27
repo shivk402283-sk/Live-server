@@ -1,36 +1,14 @@
 {
-  "name": "live-server-ultra-pro",
-  "version": "2.5.0",
-  "description": "High-Concurrency WebRTC Signaling Server for 4000+ Users",
+  "name": "shiv-cloud-engine",
+  "version": "1.0.0",
+  "description": "Master Infrastructure for Shiv Cloud",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [
-    "enterprise",
-    "webrtc",
-    "scalable",
-    "high-performance",
-    "hd-video"
-  ],
-  "author": "Shiv",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "cors": "^2.8.5",
-    "compression": "^1.7.4",
-    "helmet": "^7.0.0",
-    "dotenv": "^16.3.1"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/shivk402283-sk/Live-server.git"
+    "firebase-admin": "^11.11.1"
   }
 }
-
